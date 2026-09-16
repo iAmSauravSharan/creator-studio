@@ -21,12 +21,14 @@
     "replicate": "^0.34.0",
     "googleapis": "^144.0.0",
     "@napi-rs/canvas": "^0.1.55",
+    "diff": "^5.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "prisma": "^5.20.0",
     "typescript": "^5.6.0",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0"
+    "@types/react": "^19.0.0",
+    "@types/diff": "^5.2.1"
   }
 }

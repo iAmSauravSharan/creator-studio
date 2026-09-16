@@ -11,6 +11,9 @@ const CreatePostSchema = z.object({
   stylePrompt: z.string().optional(),
   thumbnailPromptTemplateId: z.string().optional(),
   thumbnailCustomIdea: z.string().optional(),
+  youtubeDescription: z.string().optional(),
+  redditSubreddit: z.string().optional(),
+  redditFlair: z.string().optional(),
 });
 
 // GET /api/posts — list all posts, most recent first. Pass ?accountId=... to filter.

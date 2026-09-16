@@ -13,39 +13,14 @@ type Account = {
   youtubeChannelId?: string; youtubeCategoryId?: string; redditDefaultSubreddit?: string;
 };
 
-const PLATFORM_LABELS: Record<string, string> = { youtube: "▶️ YouTube", reddit: "👽 Reddit", x: "✖️ X / Twitter", instagram: "📸 Instagram" };
+const PLATFORM_ICONS: Record<string, string> = { youtube: "▶", reddit: "◈", x: "✕", instagram: "◎" };
+const PLATFORM_LABELS: Record<string, string> = { youtube: "YouTube", reddit: "Reddit", x: "X", instagram: "Instagram" };
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return <div><label>{label}{hint && <span className="hint"> — {hint}</span>}</label>{children}</div>;
-}
-
-function AccountCard({ account, onChange, onSave }: { account: Account; onChange: (a: Account) => void; onSave: () => void }) {
-  const connectUrl = account.platform === "youtube" ? `/api/youtube/authorize?accountId=${account.id}` : account.platform === "reddit" ? `/api/reddit/authorize?accountId=${account.id}` : null;
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="card">
-      <div className="card-group-title"><h3>{PLATFORM_LABELS[account.platform]} — {account.label}</h3></div>
-      <Field label="Nickname"><input value={account.label} onChange={(e) => onChange({ ...account, label: e.target.value })} /></Field>
-      <Field label="Weekly upload target"><input type="number" value={account.weeklyUploadTarget} onChange={(e) => onChange({ ...account, weeklyUploadTarget: Number(e.target.value) })} /></Field>
-      {account.platform === "youtube" && (
-        <>
-          <Field label="Channel ID"><input value={account.youtubeChannelId ?? ""} onChange={(e) => onChange({ ...account, youtubeChannelId: e.target.value })} /></Field>
-          <Field label="Category ID"><input value={account.youtubeCategoryId ?? ""} onChange={(e) => onChange({ ...account, youtubeCategoryId: e.target.value })} /></Field>
-        </>
-      )}
-      {account.platform === "reddit" && (
-        <Field label="Default subreddit" hint="Without r/"><input value={account.redditDefaultSubreddit ?? ""} onChange={(e) => onChange({ ...account, redditDefaultSubreddit: e.target.value })} /></Field>
-      )}
-      <div style={{ marginTop: 16, padding: 14, background: "rgba(244,163,64,0.06)", borderRadius: 10 }}>
-        {account.tokenEnvKey ? (
-          <div style={{ fontSize: 13, color: "var(--success)" }}>✓ Connected — reading token from <code>{account.tokenEnvKey}</code></div>
-        ) : connectUrl ? (
-          <a href={connectUrl}><button className="secondary" type="button">🔗 Connect {PLATFORM_LABELS[account.platform]}</button></a>
-        ) : (
-          <div style={{ fontSize: 13, color: "var(--text-faint)" }}>Direct connection not available yet for this platform — use the Claude in Chrome handoff.</div>
-        )}
-      </div>
-      <button className="secondary" style={{ marginTop: 14 }} onClick={onSave}>Save</button>
-    </div>
+    <button className="toggle-switch" role="switch" onClick={() => onChange(!checked)} style={{ background: checked ? "linear-gradient(120deg, var(--accent), var(--accent-2))" : "#2a2420" }}>
+      <span className="toggle-knob" style={{ marginLeft: checked ? 20 : 0 }} />
+    </button>
   );
 }
 
@@ -64,84 +39,158 @@ export default function SettingsPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   }
-
   async function saveAccount(a: Account) {
     await fetch(`/api/accounts/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) });
     loadAccounts();
   }
-
   async function addAccount() {
     if (!newAccount.label.trim()) return;
     await fetch("/api/accounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newAccount) });
     setNewAccount({ platform: "youtube", label: "" });
     loadAccounts();
   }
+  function connectUrl(a: Account) {
+    if (a.platform === "youtube") return `/api/youtube/authorize?accountId=${a.id}`;
+    if (a.platform === "reddit") return `/api/reddit/authorize?accountId=${a.id}`;
+    return null;
+  }
 
-  if (!s) return <div className="card">Loading…</div>;
+  if (!s) return <div className="page"><div className="card">Loading…</div></div>;
   const set = (k: keyof GlobalSettings, v: any) => setS({ ...s, [k]: v });
 
   return (
-    <div>
-      <div className="hero"><div className="hero-emoji">⚙️</div><h1>Settings</h1><div className="hero-sub">Accounts and global preferences, grouped so it's never overwhelming.</div></div>
+    <div className="page page-mid">
+      <div className="kicker">Settings</div>
+      <h1>Automation setup</h1>
+      <div style={{ height: 20 }} />
 
-      <div className="card-group-title" style={{ marginBottom: 8 }}><h3>🔌 Accounts</h3></div>
-      {accounts.map((a) => (
-        <AccountCard key={a.id} account={a} onChange={(updated) => setAccounts(accounts.map((x) => x.id === updated.id ? updated : x))} onSave={() => saveAccount(accounts.find((x) => x.id === a.id)!)} />
-      ))}
-      <div className="card">
-        <h3>+ Add account</h3>
-        <label>Platform</label>
-        <select value={newAccount.platform} onChange={(e) => setNewAccount({ ...newAccount, platform: e.target.value })}>
-          {Object.entries(PLATFORM_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
-        <label>Nickname</label>
-        <input value={newAccount.label} onChange={(e) => setNewAccount({ ...newAccount, label: e.target.value })} placeholder="e.g. Sirf Bhakti Songs — Main" />
-        <div style={{ marginTop: 14 }}><button onClick={addAccount} disabled={!newAccount.label.trim()}>Add account</button></div>
+      <div className="card-plain">
+        <h3>Accounts</h3>
+        <p className="sub" style={{ marginBottom: 16 }}>One card per destination. Disconnecting keeps drafts.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+          {accounts.map((a) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 14, background: "var(--card-alt)", border: "1px solid rgba(255,255,255,.07)" }}>
+              <span style={{ width: 32, height: 32, borderRadius: 11, background: "var(--accent-soft)", border: "1px solid rgba(244,163,64,.28)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flex: "none" }}>{PLATFORM_ICONS[a.platform]}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.label}</div>
+                <div className="hint">{a.tokenEnvKey ? `Connected · ${PLATFORM_LABELS[a.platform]}` : "Not connected"}</div>
+              </div>
+              {a.tokenEnvKey ? (
+                <button className="btn-secondary" style={{ marginLeft: "auto", flex: "none", minHeight: 32, padding: "7px 12px", fontSize: 12 }}>Manage</button>
+              ) : connectUrl(a) ? (
+                <a href={connectUrl(a)!} style={{ marginLeft: "auto" }}><button className="btn-primary" style={{ minHeight: 32, padding: "7px 14px", fontSize: 12 }}>Connect</button></a>
+              ) : (
+                <span className="hint" style={{ marginLeft: "auto" }}>Not available yet</span>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,.07)" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 160px" }}>
+              <label>Platform</label>
+              <select value={newAccount.platform} onChange={(e) => setNewAccount({ ...newAccount, platform: e.target.value })}>
+                {Object.entries(PLATFORM_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: "2 1 240px" }}>
+              <label>Nickname</label>
+              <input value={newAccount.label} onChange={(e) => setNewAccount({ ...newAccount, label: e.target.value })} placeholder="e.g. Sirf Bhakti Songs — Main" />
+            </div>
+            <button className="btn-primary" onClick={addAccount} disabled={!newAccount.label.trim()}>+ Add account</button>
+          </div>
+        </div>
       </div>
 
-      <div className="card">
-        <div className="card-group-title"><h3>🎨 Branding &amp; Thumbnails</h3></div>
-        <Field label="Thumbnail mode">
+      {accounts.length > 0 && (
+        <div className="card-plain">
+          <h3>Weekly targets by account</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Weekly targets drive the dashboard bars.</p>
+          <div style={{ display: "grid", gap: 12 }}>
+            {accounts.map((a) => (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, color: "var(--text-dim)" }}>{PLATFORM_ICONS[a.platform]} {a.label}</span>
+                <input type="number" value={a.weeklyUploadTarget}
+                  onChange={(e) => setAccounts(accounts.map((x) => x.id === a.id ? { ...x, weeklyUploadTarget: Number(e.target.value) } : x))}
+                  onBlur={() => saveAccount(accounts.find((x) => x.id === a.id)!)}
+                  style={{ marginLeft: "auto", flex: "none", width: 72, height: 38, fontWeight: 700, textAlign: "center" }} />
+                <span className="hint" style={{ flex: "none" }}>/ week</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 }}>
+        <div className="card-plain">
+          <h3>Branding &amp; thumbnails</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Defaults applied to every generated image.</p>
+          <label>Thumbnail mode</label>
           <select value={s.thumbnailMode} onChange={(e) => set("thumbnailMode", e.target.value)}>
             <option value="ai">AI-generated background + text overlay</option>
             <option value="template">Local licensed template image</option>
           </select>
-        </Field>
-        <Field label="Aspect ratio"><input value={s.thumbnailAspectRatio} onChange={(e) => set("thumbnailAspectRatio", e.target.value)} /></Field>
-        <Field label="Color scheme"><input value={s.brandColorScheme} onChange={(e) => set("brandColorScheme", e.target.value)} /></Field>
-        <Field label="Art style"><input value={s.brandArtStyle} onChange={(e) => set("brandArtStyle", e.target.value)} /></Field>
-        <Field label="Thumbnail text font"><input value={s.brandFontFamily} onChange={(e) => set("brandFontFamily", e.target.value)} /></Field>
-        <Field label="Template background file"><input value={s.defaultThumbnailTemplate} onChange={(e) => set("defaultThumbnailTemplate", e.target.value)} /></Field>
-      </div>
-
-      <div className="card">
-        <div className="card-group-title"><h3>📅 Schedule &amp; Pace</h3></div>
-        <Field label="Batch production days" hint="Comma-separated"><input value={s.batchProductionDays} onChange={(e) => set("batchProductionDays", e.target.value)} /></Field>
-        <Field label="Trend discovery frequency (days)"><input type="number" value={s.discoveryFrequencyDays} onChange={(e) => set("discoveryFrequencyDays", Number(e.target.value))} /></Field>
-      </div>
-
-      <div className="card">
-        <div className="card-group-title"><h3>🧭 Niche &amp; Research</h3></div>
-        <Field label="Niche description"><input value={s.nicheDescription} onChange={(e) => set("nicheDescription", e.target.value)} /></Field>
-        <Field label="Fallback YouTube tags"><input value={s.youtubeDefaultTags} onChange={(e) => set("youtubeDefaultTags", e.target.value)} /></Field>
-        <Field label="Default style prompt version"><input value={s.defaultStylePromptVersion} onChange={(e) => set("defaultStylePromptVersion", e.target.value)} /></Field>
-        <Field label="Playbook location"><input value={s.playbookLocation} onChange={(e) => set("playbookLocation", e.target.value)} /></Field>
-      </div>
-
-      <div className="card">
-        <div className="card-group-title"><h3>🧩 Optional Integrations</h3></div>
-        <div className="toggle-row">
-          <input type="checkbox" checked={s.enableKitsAiPolish} onChange={(e) => set("enableKitsAiPolish", e.target.checked)} />
-          <div className="toggle-meta"><div>Kits.ai voice polish</div><div className="hint">Only turn on once KITS_AI_API_KEY is set in .env</div></div>
+          <label style={{ marginTop: 14 }}>Title font</label>
+          <input value={s.brandFontFamily} onChange={(e) => set("brandFontFamily", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Color scheme</label>
+          <input value={s.brandColorScheme} onChange={(e) => set("brandColorScheme", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Art style</label>
+          <input value={s.brandArtStyle} onChange={(e) => set("brandArtStyle", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Aspect ratio</label>
+          <input value={s.thumbnailAspectRatio} onChange={(e) => set("thumbnailAspectRatio", e.target.value)} />
         </div>
-        <div className="toggle-row">
-          <input type="checkbox" checked={s.enableBeeminder} onChange={(e) => set("enableBeeminder", e.target.checked)} />
-          <div className="toggle-meta"><div>Beeminder accountability</div><div className="hint">Only turn on once your Beeminder goal + .env keys are set up</div></div>
+
+        <div className="card-plain">
+          <h3>Niche &amp; research</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Guides AI suggestions and keyword research.</p>
+          <label>Primary niche</label>
+          <input value={s.nicheDescription} onChange={(e) => set("nicheDescription", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Fallback YouTube tags</label>
+          <input value={s.youtubeDefaultTags} onChange={(e) => set("youtubeDefaultTags", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Default style prompt version</label>
+          <input value={s.defaultStylePromptVersion} onChange={(e) => set("defaultStylePromptVersion", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Playbook location</label>
+          <input value={s.playbookLocation} onChange={(e) => set("playbookLocation", e.target.value)} />
         </div>
-        {s.enableBeeminder && <Field label="Beeminder weekly goal rate"><input type="number" value={s.beeminderGoalRate} onChange={(e) => set("beeminderGoalRate", Number(e.target.value))} /></Field>}
+
+        <div className="card-plain">
+          <h3>Schedule &amp; pace</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Batch days and research cadence.</p>
+          <label>Batch production days</label>
+          <input value={s.batchProductionDays} onChange={(e) => set("batchProductionDays", e.target.value)} />
+          <label style={{ marginTop: 14 }}>Trend discovery frequency (days)</label>
+          <input type="number" value={s.discoveryFrequencyDays} onChange={(e) => set("discoveryFrequencyDays", Number(e.target.value))} />
+        </div>
+
+        <div className="card-plain">
+          <h3>Optional integrations</h3>
+          <p className="sub" style={{ marginBottom: 16 }}>Off by default — enable only what you use.</p>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>Kits.ai voice polish</div>
+                <div className="hint">Requires KITS_AI_API_KEY in .env</div>
+              </div>
+              <div style={{ marginLeft: "auto" }}><Toggle checked={s.enableKitsAiPolish} onChange={(v) => set("enableKitsAiPolish", v)} /></div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>Beeminder accountability</div>
+                <div className="hint">Requires Beeminder goal + .env keys</div>
+              </div>
+              <div style={{ marginLeft: "auto" }}><Toggle checked={s.enableBeeminder} onChange={(v) => set("enableBeeminder", v)} /></div>
+            </div>
+            {s.enableBeeminder && (
+              <div>
+                <label>Beeminder weekly goal rate</label>
+                <input type="number" value={s.beeminderGoalRate} onChange={(e) => set("beeminderGoalRate", Number(e.target.value))} />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <button onClick={saveGlobal}>{saved ? "Saved ✓" : "Save global settings"}</button>
+      <button className="btn-primary" onClick={saveGlobal} style={{ marginTop: 4 }}>{saved ? "Saved ✓" : "Save global settings"}</button>
     </div>
   );
 }

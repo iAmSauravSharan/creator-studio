@@ -30,8 +30,8 @@ export default function TopBar() {
     <div className="topbar">
       <div className="topbar-inner">
         <div className="brand">
-          <span className="brand-badge">SA</span>
-          <span className="brand-text">Studio <span>Automation</span></span>
+          <span className="brand-badge">CS</span>
+          <span className="brand-text">Creator <span>Studio</span></span>
         </div>
 
         <div className="topbar-selects">
