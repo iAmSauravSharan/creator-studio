@@ -1,0 +1,32 @@
+{
+  "name": "sirf-bhakti-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "setup": "node setup.js",
+    "scheduler": "node scheduler.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@prisma/client": "^5.20.0",
+    "@prisma/adapter-libsql": "^5.20.0",
+    "@libsql/client": "^0.8.1",
+    "replicate": "^0.34.0",
+    "googleapis": "^144.0.0",
+    "@napi-rs/canvas": "^0.1.55",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0"
+  }
+}

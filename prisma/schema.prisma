@@ -1,0 +1,104 @@
+// Sirf Bhakti Songs — pipeline database schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"] // needed for the Turso connection in src/lib/db.ts
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Global, cross-platform configuration only. Anything specific to a single
+// connected account (channel name, weekly target, tokens) lives on Account
+// instead — see below.
+model Settings {
+  id                       String   @id @default("default")
+  batchProductionDays      String   @default("Saturday,Wednesday") // comma-separated
+  discoveryFrequencyDays   Int      @default(7) // how often to run Trend Discovery
+  defaultStylePromptVersion String  @default("v1")
+
+  thumbnailMode            String   @default("ai") // "template" or "ai"
+  defaultThumbnailTemplate String   @default("default.png")
+  thumbnailAspectRatio     String   @default("16:9")
+  brandColorScheme         String   @default("warm gold and saffron tones with deep maroon accents")
+  brandArtStyle            String   @default("stylized, painterly, artistic illustration — not photorealistic")
+  brandFontFamily          String   @default("NotoSansDevanagari")
+  nicheDescription         String   @default("Hindu devotional — aarti, bhajan, mantra chanting, Hindi and Sanskrit only")
+
+  youtubeDefaultTags       String   @default("bhakti,devotional,hindi,aarti,bhajan") // fallback only — real tags come from per-post research
+  playbookLocation         String   @default("local") // "local" or a Notion page URL
+
+  enableKitsAiPolish       Boolean  @default(false)
+  enableBeeminder          Boolean  @default(false)
+  beeminderGoalRate        Int      @default(3)
+
+  updatedAt                DateTime @updatedAt
+}
+
+// One row per connected account, any platform. Supports multiple accounts
+// per platform and multiple platforms at once. Tokens are NEVER stored
+// here — tokenEnvKey just names which .env variable holds the real refresh
+// token, so secrets stay exactly where they are today (.env only).
+model Account {
+  id                     String   @id @default(cuid())
+  platform               String   // "youtube" | "reddit" | "x" | "instagram"
+  label                  String   // your own nickname, e.g. "Sirf Bhakti Songs — Main"
+  weeklyUploadTarget     Int      @default(7)
+  tokenEnvKey            String?  // e.g. "YOUTUBE_REFRESH_TOKEN_MAIN" — set once you've connected
+
+  // YouTube-specific (null/unused for other platforms)
+  youtubeChannelId       String?
+  youtubeCategoryId      String?  @default("22")
+
+  // Reddit-specific
+  redditDefaultSubreddit String?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  posts                  Post[]
+}
+
+model Post {
+  id              String     @id @default(cuid())
+  accountId       String
+  account         Account    @relation(fields: [accountId], references: [id])
+  platform        String     // denormalized copy of account.platform at creation time, for easy filtering
+
+  title           String
+  lyrics          String
+  deity           String?    // e.g. "Ganesh", "Durga", "Lakshmi"
+  occasion        String?    // e.g. "Navratri Day 3", "Diwali"
+  stylePrompt     String?    // genre/instrumentation prompt fed to the generator
+  status          String     @default("DRAFT") // DRAFT, GENERATING, GENERATED, NEEDS_EDIT, POLISHING, POLISHED, THUMBNAIL_READY, APPROVED, SCHEDULED, PUBLISHED, FAILED
+
+  // Generation
+  replicatePredictionId String?
+  rawAudioUrl     String?
+  polishedAudioUrl String?
+  finalAudioUrl   String?
+
+  // Thumbnail
+  thumbnailUrl    String?
+  thumbnailTemplate String?
+  thumbnailPromptTemplateId String?
+  thumbnailCustomIdea String?
+
+  // YouTube
+  youtubeVideoId  String?
+  youtubeDescription String?
+  youtubeTags     String?     // comma-separated
+
+  // Reddit
+  redditSubreddit String?
+  redditFlair     String?
+  redditPostId    String?
+
+  scheduledPublishAt DateTime?
+  errorMessage    String?
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
