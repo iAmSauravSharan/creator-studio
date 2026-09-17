@@ -4,10 +4,15 @@ A local web app (runs on your own PC, open in your browser at
 `localhost:3000`) that takes a Suno-generated song through thumbnail
 generation, review, and scheduled YouTube upload.
 
-**Cost summary**: everything here is free — including Turso's free tier,
-which comfortably covers this volume — except Suno itself (which you
-already have) and two truly optional add-ons (Kits.ai, Beeminder) you
-don't need to set up now.
+**Cost summary**: mostly free — including Turso's free tier, which
+comfortably covers this volume — except Suno itself (which you already
+have), two truly optional add-ons (Kits.ai, Beeminder) you don't need to
+set up now, **and one open item**: when Thumbnail mode is set to
+"AI-generated background," thumbnail generation calls Replicate
+(`black-forest-labs/flux-schnell`), which is paid per call. This wasn't
+caught until the thumbnail template manager work — resolving it (switch
+the default mode, or replace the call with a free manual-upload flow) is
+still an open decision, not yet made.
 
 ---
 
@@ -61,7 +66,17 @@ don't need to set up now.
 
 8. **Add thumbnail backgrounds** — drop a few licensed images into
    `assets/thumbnail-templates/`, named by deity (`ganesh.png`,
-   `durga.png`, etc.) plus a `default.png` fallback.
+   `durga.png`, etc.) plus a `default.png` fallback. This is only used
+   when Thumbnail mode is set to "Local licensed template image."
+
+9. **Seed the AI thumbnail prompt templates (one-time):**
+   ```bash
+   node prisma/seed-thumbnail-layouts.js
+   ```
+   This backfills three starter templates (Temple Glow, Iconographic
+   Minimal, Nature Devotional) as editable rows. Safe to re-run — it skips
+   any template name that already exists. Manage these anytime at
+   `/settings/thumbnail-templates` (add, edit, deactivate/restore).
 
 You're set up. Skip straight to "Using it" below.
 
@@ -163,6 +178,27 @@ switching machines.
 
 ---
 
+## Applying a schema change (after any future `git pull`)
+
+Whenever a pull includes changes to `prisma/schema.prisma` (like the
+ThumbnailLayout table added for the thumbnail template manager), do this
+before running the app:
+
+```bash
+npx prisma generate
+npx prisma migrate dev --name <short_description_of_the_change>
+```
+
+If that change also ships a seed script (check the PR/commit notes for
+one, e.g. `prisma/seed-thumbnail-layouts.js`), run it once too — seed
+scripts are always safe to re-run, they skip anything that already exists.
+
+**If you're on Turso**, also repeat step F from "Setting up Turso" above
+with the new migration folder's name, so the synced database picks up the
+change — local-only `migrate dev` doesn't touch Turso by itself.
+
+---
+
 ## Using it
 
 1. **Settings → Accounts**: add at least one account (e.g. YouTube), then click its Connect button to run the one-time OAuth flow. Repeat for Reddit if you're using it — see "Setting up Reddit" below.
@@ -170,7 +206,7 @@ switching machines.
 3. For YouTube: generate the song in Suno, download it, upload it on the post's page, generate a thumbnail, fill metadata, approve, then publish.
 4. For Reddit: review the content, approve, then publish — immediately, or pick a future time (see the scheduler note below).
 
-The dashboard's home page (`/dashboard`) shows a weekly progress bar **per account** and every post's status. `/settings` holds Accounts and global preferences (branding, niche, pace).
+The dashboard's home page (`/dashboard`) shows a weekly progress bar **per account** and every post's status. `/settings` holds Accounts and global preferences (branding, niche, pace). `/settings/thumbnail-templates` manages the reusable AI thumbnail prompt templates picked in step 3.
 
 ---
 
