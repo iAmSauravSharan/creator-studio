@@ -4,15 +4,15 @@ A local web app (runs on your own PC, open in your browser at
 `localhost:3000`) that takes a Suno-generated song through thumbnail
 generation, review, and scheduled YouTube upload.
 
-**Cost summary**: mostly free — including Turso's free tier, which
-comfortably covers this volume — except Suno itself (which you already
-have), two truly optional add-ons (Kits.ai, Beeminder) you don't need to
-set up now, **and one open item**: when Thumbnail mode is set to
-"AI-generated background," thumbnail generation calls Replicate
-(`black-forest-labs/flux-schnell`), which is paid per call. This wasn't
-caught until the thumbnail template manager work — resolving it (switch
-the default mode, or replace the call with a free manual-upload flow) is
-still an open decision, not yet made.
+**Cost summary**: mostly free — Turso's free tier comfortably covers this
+volume, and "✨ Enhance with AI" runs on your existing Claude subscription
+(see "AI enhance setup" below) rather than paid API calls. What's left:
+Suno itself (which you already have), two truly optional add-ons (Kits.ai,
+Beeminder) you don't need to set up now, **and one open item**: when
+Thumbnail mode is set to "AI-generated background," thumbnail generation
+still calls Replicate (`black-forest-labs/flux-schnell`), which is paid
+per call. Resolving that — switch the default mode, or replace it with a
+free manual-upload flow — is still an open decision, not yet made.
 
 ---
 
@@ -229,7 +229,45 @@ The dashboard's home page (`/dashboard`) shows a weekly progress bar **per accou
 
 ---
 
-## What's genuinely optional (skip these for now)
+## AI enhance setup
+
+The "✨ Enhance with AI" buttons run through the Claude Code CLI,
+authenticated as your own Claude subscription — not a paid API key. One
+time, on your main PC:
+
+1. **Install the CLI:**
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   ```
+2. **Authenticate to your subscription (not an API key):**
+   ```bash
+   claude setup-token
+   ```
+   This opens your browser once to confirm your Claude Pro/Max login, then
+   prints a long-lived token in the terminal.
+3. **Paste that token into `.env`:**
+   ```
+   CLAUDE_CODE_OAUTH_TOKEN="the-token-you-copied"
+   ```
+4. **Verify it's actually hitting your subscription, not billing you:**
+   ```bash
+   claude auth status
+   ```
+   should report your Pro/Max plan. After your first few real Enhance
+   clicks, check console.anthropic.com's usage dashboard shows $0 for
+   this activity. Anthropic paused a change that would've moved this to
+   paid billing (announced May 2026, paused June 15, 2026) — if they ever
+   un-pause it, this is where you'd see it first.
+
+**On your other PCs**: same token works everywhere — you're one person
+authenticating from multiple machines you own, same as being logged into
+claude.ai on your phone and laptop at once. Paste the same
+`CLAUDE_CODE_OAUTH_TOKEN` value into each PC's `.env` (or, since it's just
+another line in the file, it's already covered if you're using the
+`.env`-symlink-to-a-synced-folder approach for keeping secrets identical
+across machines).
+
+
 - **Kits.ai** (voice polish) — only wire this up if Suno's raw vocals aren't
   good enough on their own.
 - **Beeminder** (accountability/commitment device) — only set this up once

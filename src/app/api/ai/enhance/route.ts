@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 // POST /api/ai/enhance
 // Body: { field: "title"|"description"|"lyrics"|"style", currentText: string,
 //         context: { deity?, occasion?, platform? } }
 // Returns: { rewritten: string, chips: string[] }
 //
-// Requires ANTHROPIC_API_KEY in .env — this is a paid API, billed per call,
-// separate from any Claude.ai subscription. Cost is small per call (a few
-// hundred tokens) but real at volume — see README for a rough estimate.
+// Runs through Claude Code's headless mode (`claude -p`), authenticated as
+// YOUR Claude subscription via CLAUDE_CODE_OAUTH_TOKEN — not the metered
+// Anthropic API. As of Anthropic's paused June 2026 billing change, this
+// still counts as normal subscription usage. See README "AI enhance setup"
+// for the one-time CLI install/token steps and — importantly — how to
+// verify it's actually landing on your plan and not silently billing.
+// Anthropic has changed this policy with roughly a month's notice before;
+// re-check the README note if this ever starts showing real spend.
+//
+// --max-budget-usd is a hard per-call ceiling, kept in even though this
+// should draw from your subscription — it's a cheap safety net if that
+// policy ever reverts without you noticing immediately.
 
 const FIELD_PROMPTS: Record<string, string> = {
   title: "Rewrite this title to be more search-friendly and devotional in tone. Keep it under 60 characters. Use Devanagari for the Hindi/Sanskrit portion where natural, paired with a transliteration. Preserve the actual meaning — don't invent content that isn't there.",
@@ -19,8 +32,11 @@ const FIELD_PROMPTS: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const { field, currentText, context } = await req.json();
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set in .env — see README." }, { status: 400 });
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    return NextResponse.json(
+      { error: "CLAUDE_CODE_OAUTH_TOKEN is not set in .env — run `claude setup-token` and paste the result. See README \"AI enhance setup\"." },
+      { status: 400 }
+    );
   }
   if (!currentText?.trim()) {
     return NextResponse.json({ error: "Nothing to enhance yet — write something first." }, { status: 400 });
@@ -38,35 +54,39 @@ export async function POST(req: NextRequest) {
     `where "rewritten" is the full improved text and "chips" are 2-4 short (under 6 words each) optional ` +
     `additional tweaks the user could apply on top, phrased as actions (e.g. "add 'with Hindi meaning'").`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929", // check docs.anthropic.com/en/docs/about-claude/models for current model ids if this errors
-      max_tokens: 800,
-      system: systemPrompt,
-      messages: [{ role: "user", content: currentText }],
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    return NextResponse.json({ error: `AI enhance failed: ${errText}` }, { status: 500 });
-  }
-
-  const data = await res.json();
-  const text = data?.content?.[0]?.text ?? "";
-
   try {
+    // execFile with an argument array (not a shell string) so currentText —
+    // arbitrary user-typed content — can never be interpreted as shell syntax.
+    const { stdout } = await execFileAsync(
+      "claude",
+      [
+        "-p", currentText,
+        "--append-system-prompt", systemPrompt,
+        "--output-format", "json",
+        "--max-turns", "1",          // pure text rewrite, no tool-use loop needed
+        "--allowedTools", "",        // no filesystem/bash access needed for this task
+        "--max-budget-usd", "0.50",  // hard ceiling — see file header
+      ],
+      {
+        env: process.env,
+        timeout: 60_000,
+        maxBuffer: 5 * 1024 * 1024,
+      }
+    );
+
+    // The --output-format json envelope's exact shape has shifted across
+    // Claude Code versions (result vs a messages array). Handle both rather
+    // than assume one — cheaper than re-verifying on every release.
+    const envelope = JSON.parse(stdout);
+    const text: string = envelope.result ?? envelope.messages?.at(-1)?.content ?? "";
+
     const cleaned = text.trim().replace(/^```json\s*|```$/g, "");
     const parsed = JSON.parse(cleaned);
     return NextResponse.json({ rewritten: parsed.rewritten ?? currentText, chips: parsed.chips ?? [] });
-  } catch {
-    // If the model didn't return clean JSON, fall back to using the raw text as the rewrite with no chips.
-    return NextResponse.json({ rewritten: text, chips: [] });
+  } catch (err: any) {
+    const hint = /command not found|ENOENT/.test(String(err?.message))
+      ? " (Is the Claude Code CLI installed? npm install -g @anthropic-ai/claude-code)"
+      : "";
+    return NextResponse.json({ error: `AI enhance failed: ${err?.message ?? err}${hint}` }, { status: 500 });
   }
 }
