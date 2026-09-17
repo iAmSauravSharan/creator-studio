@@ -138,6 +138,7 @@ export default function SettingsPage() {
           <input value={s.brandArtStyle} onChange={(e) => set("brandArtStyle", e.target.value)} />
           <label style={{ marginTop: 14 }}>Aspect ratio</label>
           <input value={s.thumbnailAspectRatio} onChange={(e) => set("thumbnailAspectRatio", e.target.value)} />
+          <a href="/settings/thumbnail-templates" style={{ display: "inline-block", marginTop: 14, fontSize: 13 }}>Manage thumbnail templates →</a>
         </div>
 
         <div className="card-plain">

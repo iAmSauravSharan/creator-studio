@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const ctx = canvas.getContext("2d");
 
   if (settings.thumbnailMode === "ai") {
-    const prompt = buildThumbnailPrompt({
+    const prompt = await buildThumbnailPrompt({
       templateId: templateId ?? "temple-glow",
       customIdea: customIdea ?? "",
       deity: post.deity ?? "",
